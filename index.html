@@ -69,6 +69,27 @@ function isForget(val) { return val === FORGOT; }
 function isEmpty(val) { return val === null; }
 function isNormal(val) { return val !== null && !isForget(val) && !isFix(val); }
 
+// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+function ConfirmDialog({ icon, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, backdropFilter:"blur(6px)", padding:"20px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background:"#0f0f13", border:`2px solid ${confirmColor || "#ff6b35"}`, borderRadius:18, padding:"28px 24px 22px", width:"100%", maxWidth:320, boxShadow:`0 0 50px ${confirmColor || "#ff6b35"}33`, textAlign:"center" }}>
+        {icon && <div style={{ fontSize:36, marginBottom:12 }}>{icon}</div>}
+        <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:1, marginBottom:10 }}>{title}</div>
+        <div style={{ fontSize:12, color:"#666", lineHeight:1.7, marginBottom:24 }}>{message}</div>
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onCancel} style={{ flex:1, background:"transparent", color:"#555", border:"1px solid #2a2a35", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1 }}>
+            Abbrechen
+          </button>
+          <button onClick={onConfirm} style={{ flex:1, background: confirmColor || "#ff6b35", color: confirmColor === "#ff4d6d" ? "#fff" : "#000", border:"none", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1, boxShadow:`0 0 16px ${confirmColor || "#ff6b35"}55` }}>
+            {confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Settings Panel ───────────────────────────────────────────────────────────
 function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, onClose }) {
   const pct = Math.round(forgetChance * 100);
@@ -139,7 +160,7 @@ function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, onClo
 }
 
 // ─── Card Modal ───────────────────────────────────────────────────────────────
-function CardModal({ index, currentValue, numbers, onSave, onRemove, onClose }) {
+function CardModal({ index, currentValue, numbers, onSave, onRemove, onAskRemove, onClose }) {
   const initNum = currentValue === null || isForget(currentValue) ? null : isFix(currentValue) ? fixNum(currentValue) : currentValue;
   const [selectedNum, setSelectedNum] = useState(initNum);
   const [fixMode, setFixMode] = useState(isFix(currentValue));
@@ -156,9 +177,7 @@ function CardModal({ index, currentValue, numbers, onSave, onRemove, onClose }) 
     if (selectedNum !== null) onSave(nf ? `FIX:${selectedNum}` : selectedNum);
   };
 
-  const handleRemove = () => {
-    if (window.confirm("Dieses Feld wirklich entfernen?")) { onRemove(index); }
-  };
+  const handleRemove = () => { onAskRemove(index); };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100, backdropFilter:"blur(5px)" }}>
@@ -237,16 +256,14 @@ function App() {
   const [shakingIdx, setShakingIdx] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [forgetChance, setForgetChance] = useState(0.25);
+  const [confirm, setConfirm] = useState(null); // { type, payload }
 
   const numbers = MODES[mode].numbers;
 
   const handleChangeMode = (newMode) => {
     if (newMode === mode) return;
-    if (window.confirm(`Spielmodus wechseln zu "${MODES[newMode].label}"? Das startet ein neues Spiel.`)) {
-      setMode(newMode);
-      setCards(Array(MODES[newMode].startCards).fill(null));
-      setModal(null);
-    }
+    setShowSettings(false);
+    setConfirm({ type:"mode", payload: newMode });
   };
 
   const handleAddCard = () => setCards((p) => [...p, null]);
@@ -254,6 +271,28 @@ function App() {
   const handleRemoveCard = (index) => {
     setModal(null);
     setCards((p) => p.filter((_, i) => i !== index));
+  };
+
+  const handleAskRemove = (index) => {
+    setConfirm({ type:"remove", payload: index });
+  };
+
+  const handleReset = () => {
+    setConfirm({ type:"reset" });
+  };
+
+  const handleConfirmYes = () => {
+    const c = confirm;
+    setConfirm(null);
+    if (c.type === "mode") {
+      setMode(c.payload);
+      setCards(Array(MODES[c.payload].startCards).fill(null));
+      setModal(null);
+    } else if (c.type === "remove") {
+      handleRemoveCard(c.payload);
+    } else if (c.type === "reset") {
+      setCards(Array(MODES[mode].startCards).fill(null));
+    }
   };
 
   const handleSave = (val) => {
@@ -275,10 +314,6 @@ function App() {
         setToast({ message:`Während du Karte ${savedIndex+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`, type:"forgot" });
       }
     }, 300);
-  };
-
-  const handleReset = () => {
-    if (window.confirm("Wirklich alles löschen?")) setCards(Array(MODES[mode].startCards).fill(null));
   };
 
   const filled = cards.filter(isNormal).length;
