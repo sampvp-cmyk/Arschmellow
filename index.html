@@ -10,96 +10,151 @@
   <title>Arschmallows Helper</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0b0b0f; color: #fff; font-family: 'Courier New', monospace; }
-    #root { min-height: 100vh; }
+    body { background: #0b0b0f; color: #fff; font-family: 'Courier New', monospace; -webkit-tap-highlight-color: transparent; }
 
     @keyframes shake {
-      0%, 100% { transform: translateX(0) rotate(0deg); }
+      0%,100% { transform: translateX(0) rotate(0deg); }
       20% { transform: translateX(-7px) rotate(-2deg); }
       40% { transform: translateX(7px) rotate(2deg); }
       60% { transform: translateX(-4px) rotate(-1deg); }
       80% { transform: translateX(4px) rotate(1deg); }
     }
     @keyframes toastIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+      from { opacity:0; transform:translateX(-50%) translateY(12px); }
+      to   { opacity:1; transform:translateX(-50%) translateY(0); }
     }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+    @keyframes popIn {
+      from { opacity:0; transform:scale(0.85); }
+      to   { opacity:1; transform:scale(1); }
+    }
 
-    .shake { animation: shake 0.4s ease; }
+    .gear-btn { transition: border-color 0.2s; }
     .gear-btn:hover { animation: spin 1.5s linear infinite; }
 
-    .forget-slider {
-      -webkit-appearance: none; appearance: none;
-      width: 100%; height: 6px; border-radius: 3px;
-      outline: none; cursor: pointer; margin-bottom: 14px;
-    }
-    .forget-slider::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none;
-      width: 22px; height: 22px; border-radius: 50%;
-      background: #ff6b35; border: 2px solid #fff; cursor: pointer;
-      box-shadow: 0 0 8px rgba(255,107,53,0.5);
-    }
-    .forget-slider::-moz-range-thumb {
-      width: 22px; height: 22px; border-radius: 50%;
-      background: #ff6b35; border: 2px solid #fff; cursor: pointer;
-    }
+    .forget-slider { -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:3px; outline:none; cursor:pointer; margin-bottom:14px; }
+    .forget-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:#ff6b35; border:2px solid #fff; cursor:pointer; box-shadow:0 0 8px rgba(255,107,53,0.5); }
+    .forget-slider::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#ff6b35; border:2px solid #fff; cursor:pointer; }
+
+    .card-shake { animation: shake 0.4s ease; }
   </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="app"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-
 <script type="text/babel">
-const { useState, useEffect } = React;
+
+const { useState, useEffect, useCallback } = React;
 
 const FORGOT = "💨";
 
 const MODES = {
-  normal: { label: "Arschmallows", sub: "6 Karten · -4, -2, 1–10", startCards: 6, numbers: [-4, -2, ...Array.from({length:10},(_,i)=>i+1)] },
-  xxl:    { label: "Arschmallows XXL", sub: "9 Karten · -4, -2, 1–15", startCards: 9, numbers: [-4, -2, ...Array.from({length:15},(_,i)=>i+1)] },
+  normal: {
+    label: "Arschmallows",
+    sub: "6 Karten · -4, -2, 1–10",
+    startCards: 6,
+    numbers: [-4, -2, 1,2,3,4,5,6,7,8,9,10]
+  },
+  xxl: {
+    label: "Arschmallows XXL",
+    sub: "9 Karten · -4, -2, 1–15",
+    startCards: 9,
+    numbers: [-4, -2, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+  }
 };
 
-function isFix(val) { return typeof val === "string" && val.startsWith("FIX:"); }
-function fixNum(val) { return val?.replace("FIX:", "") ?? ""; }
-function isForget(val) { return val === FORGOT; }
-function isEmpty(val) { return val === null; }
-function isNormal(val) { return val !== null && !isForget(val) && !isFix(val); }
+const isFix  = v => typeof v === "string" && v.startsWith("FIX:");
+const fixNum = v => v ? v.replace("FIX:", "") : "";
+const isForgot = v => v === FORGOT;
+const isEmpty  = v => v === null;
+const isNormal = v => v !== null && !isForgot(v) && !isFix(v);
 
-// ─── Confirm Dialog ───────────────────────────────────────────────────────────
-function ConfirmDialog({ icon, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
+// ── Overlay backdrop ──────────────────────────────────────────────────────────
+function Backdrop({ onClick, zIndex }) {
   return (
-    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, backdropFilter:"blur(6px)", padding:"20px" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background:"#0f0f13", border:`2px solid ${confirmColor || "#ff6b35"}`, borderRadius:18, padding:"28px 24px 22px", width:"100%", maxWidth:320, boxShadow:`0 0 50px ${confirmColor || "#ff6b35"}33`, textAlign:"center" }}>
-        {icon && <div style={{ fontSize:36, marginBottom:12 }}>{icon}</div>}
-        <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:1, marginBottom:10 }}>{title}</div>
-        <div style={{ fontSize:12, color:"#666", lineHeight:1.7, marginBottom:24 }}>{message}</div>
-        <div style={{ display:"flex", gap:10 }}>
-          <button onClick={onCancel} style={{ flex:1, background:"transparent", color:"#555", border:"1px solid #2a2a35", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1 }}>
-            Abbrechen
-          </button>
-          <button onClick={onConfirm} style={{ flex:1, background: confirmColor || "#ff6b35", color: confirmColor === "#ff4d6d" ? "#fff" : "#000", border:"none", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1, boxShadow:`0 0 16px ${confirmColor || "#ff6b35"}55` }}>
-            {confirmLabel || "OK"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <div
+      onClick={onClick}
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", backdropFilter:"blur(5px)", zIndex: zIndex || 50 }}
+    />
   );
 }
 
-// ─── Settings Panel ───────────────────────────────────────────────────────────
+// ── Custom Dialog (replaces ALL window.confirm / window.alert) ────────────────
+function Dialog({ icon, title, message, confirmLabel, confirmColor, cancelLabel, onConfirm, onCancel }) {
+  const cc = confirmColor || "#ff6b35";
+  const isDark = cc === "#f1c40f";
+  return (
+    <>
+      <Backdrop onClick={onCancel} zIndex={300} />
+      <div style={{
+        position:"fixed", top:"50%", left:"50%",
+        transform:"translate(-50%,-50%)",
+        zIndex:301,
+        background:"#0f0f13",
+        border:`2px solid ${cc}`,
+        borderRadius:18,
+        padding:"28px 24px 22px",
+        width:"calc(100% - 48px)",
+        maxWidth:320,
+        boxShadow:`0 0 50px ${cc}44`,
+        textAlign:"center",
+        animation:"popIn 0.2s ease"
+      }}>
+        {icon && <div style={{ fontSize:38, marginBottom:12 }}>{icon}</div>}
+        <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:1, marginBottom:10 }}>{title}</div>
+        <div style={{ fontSize:12, color:"#666", lineHeight:1.75, marginBottom:24 }}>{message}</div>
+        <div style={{ display:"flex", gap:10 }}>
+          <button
+            onClick={onCancel}
+            style={{ flex:1, background:"transparent", color:"#666", border:"1px solid #2a2a35", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}
+          >{cancelLabel || "Abbrechen"}</button>
+          <button
+            onClick={onConfirm}
+            style={{ flex:1, background:cc, color: isDark ? "#000" : "#fff", border:"none", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", boxShadow:`0 0 16px ${cc}55` }}
+          >{confirmLabel || "OK"}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function Toast({ message, type, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, []);
+  const s = type === "forgot"
+    ? { bg:"#590d22", border:"#ff4d6d", color:"#ff4d6d" }
+    : { bg:"#0a2e1a", border:"#2ecc71", color:"#2ecc71" };
+  return (
+    <div style={{
+      position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)",
+      background:s.bg, border:`2px solid ${s.border}`, borderRadius:12,
+      padding:"13px 22px", color:s.color, fontFamily:"'Courier New',monospace",
+      fontWeight:"bold", fontSize:13, zIndex:400,
+      boxShadow:`0 0 30px ${s.border}44`,
+      animation:"toastIn 0.3s ease",
+      maxWidth:"88vw", textAlign:"center", lineHeight:1.5
+    }}>{message}</div>
+  );
+}
+
+// ── Settings Panel ────────────────────────────────────────────────────────────
 function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, onClose }) {
   const pct = Math.round(forgetChance * 100);
-  const sliderColor = pct === 0 ? "#2ecc71" : pct < 30 ? "#f1c40f" : pct < 60 ? "#ff6b35" : "#ff4d6d";
-  const label = pct === 0 ? "nie vergessen" : pct < 20 ? "selten vergessen" : pct < 50 ? "manchmal vergessen" : pct < 80 ? "oft vergessen" : "immer vergessen";
-
+  const sc = pct===0 ? "#2ecc71" : pct<30 ? "#f1c40f" : pct<60 ? "#ff6b35" : "#ff4d6d";
+  const lbl = pct===0 ? "nie vergessen" : pct<20 ? "selten vergessen" : pct<50 ? "manchmal vergessen" : pct<80 ? "oft vergessen" : "immer vergessen";
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"flex-start", justifyContent:"flex-end", zIndex:100, backdropFilter:"blur(5px)", overflowY:"auto" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background:"#0f0f13", border:"2px solid #ff6b35", borderRadius:"0 0 0 16px", padding:"20px 20px 28px", width:300, boxShadow:"-10px 10px 40px rgba(0,0,0,0.6)" }}>
-
+    <>
+      <Backdrop onClick={onClose} zIndex={100} />
+      <div style={{
+        position:"fixed", top:0, right:0, zIndex:101,
+        background:"#0f0f13", border:"2px solid #ff6b35",
+        borderRadius:"0 0 0 16px", padding:"20px 20px 28px",
+        width:300, maxHeight:"100vh", overflowY:"auto",
+        boxShadow:"-10px 10px 40px rgba(0,0,0,0.7)"
+      }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:18 }}>⚙️</span>
@@ -108,236 +163,254 @@ function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, onClo
           <div onClick={onClose} style={{ color:"#555", fontSize:20, cursor:"pointer" }}>✕</div>
         </div>
 
-        {/* Mode selector */}
+        {/* Mode */}
         <div style={{ background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:16, marginBottom:12 }}>
           <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Spielmodus</div>
           {Object.entries(MODES).map(([key, m]) => {
             const active = mode === key;
             return (
               <div key={key} onClick={() => onChangeMode(key)}
-                style={{ background: active ? "#1a1a00" : "#1a1a22", border: `2px solid ${active ? "#f1c40f" : "#2a2a35"}`, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", transition:"all 0.15s", boxShadow: active ? "0 0 14px rgba(241,196,15,0.2)" : "none" }}>
+                style={{ background: active?"#1a1a00":"#1a1a22", border:`2px solid ${active?"#f1c40f":"#2a2a35"}`, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow: active?"0 0 14px rgba(241,196,15,0.2)":"none" }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:900, color: active ? "#f1c40f" : "#ccc", letterSpacing:1 }}>{m.label}</div>
-                    <div style={{ fontSize:10, color:"#555", marginTop:3, letterSpacing:1 }}>{m.sub}</div>
+                    <div style={{ fontSize:13, fontWeight:900, color: active?"#f1c40f":"#ccc", letterSpacing:1 }}>{m.label}</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:3 }}>{m.sub}</div>
                   </div>
-                  <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${active ? "#f1c40f" : "#333"}`, background: active ? "#f1c40f" : "transparent", flexShrink:0 }} />
+                  <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${active?"#f1c40f":"#333"}`, background: active?"#f1c40f":"transparent", flexShrink:0 }} />
                 </div>
               </div>
             );
           })}
-          <div style={{ fontSize:10, color:"#333", marginTop:4, textAlign:"center" }}>
-            Modwechsel startet neues Spiel
-          </div>
+          <div style={{ fontSize:10, color:"#333", textAlign:"center" }}>Modwechsel startet neues Spiel</div>
         </div>
 
         {/* Forget chance */}
         <div style={{ background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:16 }}>
           <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Vergesslichkeit</div>
-          <div style={{ fontSize:52, fontWeight:900, color:sliderColor, textAlign:"center", lineHeight:1, marginBottom:4, transition:"color 0.3s", textShadow:`0 0 20px ${sliderColor}66` }}>{pct}%</div>
-          <div style={{ fontSize:10, color:"#555", textAlign:"center", marginBottom:16, letterSpacing:1 }}>{label}</div>
+          <div style={{ fontSize:52, fontWeight:900, color:sc, textAlign:"center", lineHeight:1, marginBottom:4, textShadow:`0 0 20px ${sc}66` }}>{pct}%</div>
+          <div style={{ fontSize:10, color:"#555", textAlign:"center", marginBottom:16 }}>{lbl}</div>
           <input type="range" min={0} max={100} step={1} value={pct}
-            onChange={(e) => onChangeChance(Number(e.target.value)/100)}
+            onChange={e => onChangeChance(Number(e.target.value)/100)}
             className="forget-slider"
-            style={{ background:`linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${pct}%, #2a2a35 ${pct}%, #2a2a35 100%)` }}
+            style={{ background:`linear-gradient(to right,${sc} ${pct}%,#2a2a35 ${pct}%)` }}
           />
           <div style={{ display:"flex", gap:6 }}>
-            {[0,25,50,75,100].map((p) => (
+            {[0,25,50,75,100].map(p => (
               <button key={p} onClick={() => onChangeChance(p/100)}
-                style={{ flex:1, background: pct===p?"#ff6b35":"#1a1a22", color: pct===p?"#000":"#555", border:`1px solid ${pct===p?"#ff6b35":"#2a2a35"}`, borderRadius:6, padding:"6px 0", fontSize:10, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}>
+                style={{ flex:1, background:pct===p?"#ff6b35":"#1a1a22", color:pct===p?"#000":"#555", border:`1px solid ${pct===p?"#ff6b35":"#2a2a35"}`, borderRadius:6, padding:"6px 0", fontSize:10, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}>
                 {p}%
               </button>
             ))}
           </div>
         </div>
-
         <div style={{ marginTop:14, fontSize:10, color:"#333", textAlign:"center", lineHeight:1.7 }}>
           Chance pro Eintrag, dass eine<br/>andere Karte vergessen wird.
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ─── Card Modal ───────────────────────────────────────────────────────────────
-function CardModal({ index, currentValue, numbers, onSave, onRemove, onAskRemove, onClose }) {
-  const initNum = currentValue === null || isForget(currentValue) ? null : isFix(currentValue) ? fixNum(currentValue) : currentValue;
-  const [selectedNum, setSelectedNum] = useState(initNum);
+// ── Card Modal ────────────────────────────────────────────────────────────────
+function CardModal({ index, currentValue, numbers, onSave, onAskRemove, onClose }) {
+  const initNum = (isEmpty(currentValue)||isForgot(currentValue)) ? null : isFix(currentValue) ? fixNum(currentValue) : currentValue;
+  const [selNum, setSelNum] = useState(initNum);
   const [fixMode, setFixMode] = useState(isFix(currentValue));
 
-  const handleNumClick = (num) => {
-    const s = String(num);
-    setSelectedNum(s);
-    onSave(fixMode ? `FIX:${s}` : s);
+  const pickNum = n => {
+    const s = String(n);
+    setSelNum(s);
+    onSave(fixMode ? "FIX:"+s : s);
   };
 
-  const handleFixToggle = () => {
+  const toggleFix = () => {
     const nf = !fixMode;
     setFixMode(nf);
-    if (selectedNum !== null) onSave(nf ? `FIX:${selectedNum}` : selectedNum);
+    if (selNum !== null) onSave(nf ? "FIX:"+selNum : selNum);
   };
 
-  const handleRemove = () => { onAskRemove(index); };
-
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100, backdropFilter:"blur(5px)" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background:"#0f0f13", border:"2px solid #ff6b35", borderRadius:"20px 20px 0 0", padding:"20px 16px 40px", width:"100%", maxWidth:420, boxShadow:"0 -20px 60px rgba(255,107,53,0.2)" }}>
-
+    <>
+      <Backdrop onClick={onClose} zIndex={100} />
+      <div style={{
+        position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+        zIndex:101, background:"#0f0f13",
+        border:"2px solid #ff6b35", borderRadius:"20px 20px 0 0",
+        padding:"20px 16px 40px",
+        width:"100%", maxWidth:440,
+        boxShadow:"0 -20px 60px rgba(255,107,53,0.2)"
+      }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-          <div style={{ color:"#ff6b35", fontSize:12, letterSpacing:4, textTransform:"uppercase" }}>Karte #{index + 1}</div>
-          <div onClick={onClose} style={{ color:"#555", fontSize:20, cursor:"pointer" }}>✕</div>
+          <span style={{ color:"#ff6b35", fontSize:12, letterSpacing:4, textTransform:"uppercase" }}>Karte #{index+1}</span>
+          <span onClick={onClose} style={{ color:"#555", fontSize:20, cursor:"pointer" }}>✕</span>
         </div>
 
-        <button onClick={handleFixToggle} style={{ width:"100%", background: fixMode?"#0a2e10":"#1a1a22", color: fixMode?"#2ecc71":"#555", border: fixMode?"2px solid #2ecc71":"2px solid #2a2a35", borderRadius:10, padding:"11px 0", fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:14, cursor:"pointer", letterSpacing:2, boxShadow: fixMode?"0 0 14px rgba(46,204,113,0.3)":"none", marginBottom:12, transition:"all 0.15s" }}>
+        <button onClick={toggleFix} style={{
+          width:"100%", marginBottom:12,
+          background: fixMode?"#0a2e10":"#1a1a22",
+          color: fixMode?"#2ecc71":"#555",
+          border: fixMode?"2px solid #2ecc71":"2px solid #2a2a35",
+          borderRadius:10, padding:"11px 0",
+          fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:14,
+          cursor:"pointer", letterSpacing:2,
+          boxShadow: fixMode?"0 0 14px rgba(46,204,113,0.3)":"none"
+        }}>
           🔒 FIX {fixMode?"AN":"AUS"} — {fixMode?"wird nicht vergessen":"kann vergessen werden"}
         </button>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:8, marginBottom:12 }}>
-          {numbers.map((num) => {
-            const s = String(num), sel = s===selectedNum, neg = num<0;
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, marginBottom:12 }}>
+          {numbers.map(n => {
+            const s = String(n), sel = s===selNum, neg = n<0;
             return (
-              <button key={num} onClick={() => handleNumClick(num)}
-                style={{ background: sel?(fixMode?"#1a4a1a":"#ff6b35"):neg?"#1a0a10":"#1a1a22", color: sel?(fixMode?"#2ecc71":"#000"):neg?"#ff8080":"#ccc", border: sel?`2px solid ${fixMode?"#2ecc71":"#ff6b35"}`:neg?"2px solid #4a1a1a":"2px solid #2a2a35", borderRadius:8, padding:"14px 4px", fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:16, cursor:"pointer", transition:"all 0.1s", boxShadow: sel?`0 0 12px ${fixMode?"rgba(46,204,113,0.4)":"rgba(255,107,53,0.4)"}`:""  }}>
-                {num}
-              </button>
+              <button key={n} onClick={() => pickNum(n)} style={{
+                background: sel?(fixMode?"#1a4a1a":"#ff6b35"):neg?"#1a0a10":"#1a1a22",
+                color: sel?(fixMode?"#2ecc71":"#000"):neg?"#ff8080":"#ccc",
+                border: sel?`2px solid ${fixMode?"#2ecc71":"#ff6b35"}`:neg?"2px solid #4a1a1a":"2px solid #2a2a35",
+                borderRadius:8, padding:"14px 4px",
+                fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:16, cursor:"pointer",
+                boxShadow: sel?`0 0 12px ${fixMode?"rgba(46,204,113,0.4)":"rgba(255,107,53,0.4)"}`:""
+              }}>{n}</button>
             );
           })}
         </div>
 
-        <button onClick={() => onSave(null)}
-          style={{ width:"100%", background:"transparent", color:"#555", border:"1px solid #2a2a35", borderRadius:8, padding:"10px 0", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1, marginBottom:8 }}>
-          ✕ Karte leeren
-        </button>
+        <button onClick={() => onSave(null)} style={{
+          width:"100%", marginBottom:8,
+          background:"transparent", color:"#555",
+          border:"1px solid #2a2a35", borderRadius:8, padding:"10px 0",
+          fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1
+        }}>✕ Karte leeren</button>
 
-        <button onClick={handleRemove}
-          style={{ width:"100%", background:"#1a0505", color:"#ff4d6d", border:"1px solid #4a1010", borderRadius:8, padding:"10px 0", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1, fontWeight:900 }}>
-          🗑 Feld entfernen
-        </button>
+        <button onClick={() => onAskRemove(index)} style={{
+          width:"100%",
+          background:"#1a0505", color:"#ff4d6d",
+          border:"1px solid #4a1010", borderRadius:8, padding:"10px 0",
+          fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1
+        }}>🗑 Feld entfernen</button>
       </div>
-    </div>
+    </>
   );
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-function Toast({ message, type, onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, []);
-  const s = type==="forgot" ? { bg:"#590d22", border:"#ff4d6d", color:"#ff4d6d" } : { bg:"#0a2e1a", border:"#2ecc71", color:"#2ecc71" };
-  return (
-    <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background:s.bg, border:`2px solid ${s.border}`, borderRadius:12, padding:"13px 22px", color:s.color, fontFamily:"'Courier New',monospace", fontWeight:"bold", fontSize:13, zIndex:200, boxShadow:`0 0 30px ${s.border}44`, animation:"toastIn 0.3s ease", maxWidth:"88vw", textAlign:"center", lineHeight:1.5 }}>
-      {message}
-    </div>
-  );
-}
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
+// ── Card ──────────────────────────────────────────────────────────────────────
 function Card({ value, index, onClick, shaking }) {
-  const empty=isEmpty(value), forgotten=isForget(value), fix=isFix(value), num=fix?fixNum(value):value;
-  const bg = forgotten?"#590d22":fix?"#0a2010":empty?"#16161e":"#1e1e2e";
-  const bc = forgotten?"#ff4d6d":fix?"#2ecc71":empty?"#2a2a35":"#ff6b35";
-  const cl = forgotten?"#ff4d6d":fix?"#2ecc71":empty?"#333":"#fff";
-  const sh = forgotten?"0 0 20px rgba(255,77,109,0.35)":fix?"0 0 14px rgba(46,204,113,0.2)":!empty?"0 0 10px rgba(255,107,53,0.12)":"none";
+  const empty=isEmpty(value), forgot=isForgot(value), fix=isFix(value), num=fix?fixNum(value):value;
   return (
-    <div onClick={() => onClick(index)} className={shaking?"shake":""}
-      style={{ background:bg, border:`2px solid ${bc}`, borderStyle:empty?"dashed":"solid", borderRadius:10, aspectRatio:"2/3", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:2, cursor:"pointer", color:cl, fontFamily:"'Courier New',monospace", transition:"all 0.2s", boxShadow:sh, userSelect:"none", padding:4, textAlign:"center", overflow:"hidden" }}>
-      {forgotten ? <span style={{fontSize:"1.8em"}}>💨</span>
+    <div onClick={() => onClick(index)} className={shaking?"card-shake":""}
+      style={{
+        background: forgot?"#590d22":fix?"#0a2010":empty?"#16161e":"#1e1e2e",
+        border:`2px solid ${forgot?"#ff4d6d":fix?"#2ecc71":empty?"#2a2a35":"#ff6b35"}`,
+        borderStyle: empty?"dashed":"solid",
+        borderRadius:10, aspectRatio:"2/3",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        flexDirection:"column", gap:2,
+        cursor:"pointer",
+        color: forgot?"#ff4d6d":fix?"#2ecc71":empty?"#333":"#fff",
+        fontFamily:"'Courier New',monospace",
+        transition:"all 0.2s",
+        boxShadow: forgot?"0 0 20px rgba(255,77,109,0.35)":fix?"0 0 14px rgba(46,204,113,0.2)":!empty?"0 0 10px rgba(255,107,53,0.12)":"none",
+        userSelect:"none", padding:4, textAlign:"center", overflow:"hidden"
+      }}>
+      {forgot ? <span style={{fontSize:"1.8em"}}>💨</span>
         : empty ? <span style={{fontSize:"1.2em",color:"#333"}}>·</span>
-        : fix ? <><span style={{fontSize:"0.65em",letterSpacing:2,opacity:0.8}}>🔒FIX</span><span style={{fontSize:"1.4em",fontWeight:900,lineHeight:1}}>{num}</span></>
+        : fix   ? <><span style={{fontSize:"0.65em",letterSpacing:2,opacity:0.8}}>🔒FIX</span><span style={{fontSize:"1.4em",fontWeight:900,lineHeight:1}}>{num}</span></>
         : <span style={{fontSize:"1.3em",fontWeight:900}}>{value}</span>}
     </div>
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [mode, setMode] = useState("normal");
-  const [cards, setCards] = useState(() => Array(MODES.normal.startCards).fill(null));
-  const [modal, setModal] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [shakingIdx, setShakingIdx] = useState(null);
+  const [mode, setMode]               = useState("normal");
+  const [cards, setCards]             = useState(() => Array(MODES.normal.startCards).fill(null));
+  const [openCard, setOpenCard]       = useState(null);
+  const [toast, setToast]             = useState(null);
+  const [shakingIdx, setShakingIdx]   = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [forgetChance, setForgetChance] = useState(0.25);
-  const [confirm, setConfirm] = useState(null); // { type, payload }
+  const [dlg, setDlg]                 = useState(null);
 
   const numbers = MODES[mode].numbers;
 
-  const handleChangeMode = (newMode) => {
-    if (newMode === mode) return;
-    setShowSettings(false);
-    setConfirm({ type:"mode", payload: newMode });
-  };
+  // ── dialog helpers
+  const askMode   = key  => { if (key === mode) return; setShowSettings(false); setDlg({ type:"mode",   data:key   }); };
+  const askRemove = idx  => { setOpenCard(null); setDlg({ type:"remove", data:idx   }); };
+  const askReset  = ()   => { setDlg({ type:"reset"                        }); };
 
-  const handleAddCard = () => setCards((p) => [...p, null]);
-
-  const handleRemoveCard = (index) => {
-    setModal(null);
-    setCards((p) => p.filter((_, i) => i !== index));
-  };
-
-  const handleAskRemove = (index) => {
-    setConfirm({ type:"remove", payload: index });
-  };
-
-  const handleReset = () => {
-    setConfirm({ type:"reset" });
-  };
-
-  const handleConfirmYes = () => {
-    const c = confirm;
-    setConfirm(null);
-    if (c.type === "mode") {
-      setMode(c.payload);
-      setCards(Array(MODES[c.payload].startCards).fill(null));
-      setModal(null);
-    } else if (c.type === "remove") {
-      handleRemoveCard(c.payload);
-    } else if (c.type === "reset") {
+  const confirmDlg = () => {
+    const d = dlg;
+    setDlg(null);
+    if (d.type === "mode") {
+      setMode(d.data);
+      setCards(Array(MODES[d.data].startCards).fill(null));
+      setOpenCard(null);
+    } else if (d.type === "remove") {
+      setCards(prev => prev.filter((_, i) => i !== d.data));
+    } else if (d.type === "reset") {
       setCards(Array(MODES[mode].startCards).fill(null));
     }
   };
 
-  const handleSave = (val) => {
-    const savedIndex = modal;
-    setModal(null);
-    if (val === null) { setCards((p) => { const n=[...p]; n[savedIndex]=null; return n; }); return; }
-    const nextCards = [...cards];
-    nextCards[savedIndex] = val;
-    setCards(nextCards);
+  // ── save card value
+  const saveCard = val => {
+    const idx = openCard;
+    setOpenCard(null);
+
+    if (val === null) {
+      setCards(prev => { const n=[...prev]; n[idx]=null; return n; });
+      return;
+    }
+
+    const next = [...cards];
+    next[idx] = val;
+    setCards(next);
+
     if (isFix(val)) return;
+
     setTimeout(() => {
-      const vi = nextCards.map((v,i)=>({v,i})).filter(({v,i}) => isNormal(v) && i!==savedIndex).map(({i})=>i);
-      if (vi.length===0) return;
+      const targets = next
+        .map((v,i) => ({v,i}))
+        .filter(({v,i}) => isNormal(v) && i !== idx)
+        .map(({i}) => i);
+      if (!targets.length) return;
       if (Math.random() < forgetChance) {
-        const victim = vi[Math.floor(Math.random()*vi.length)];
-        setCards((p) => { const n=[...p]; n[victim]=FORGOT; return n; });
+        const victim = targets[Math.floor(Math.random()*targets.length)];
+        setCards(prev => { const n=[...prev]; n[victim]=FORGOT; return n; });
         setShakingIdx(victim);
         setTimeout(() => setShakingIdx(null), 500);
-        setToast({ message:`Während du Karte ${savedIndex+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`, type:"forgot" });
+        setToast({ msg:`Während du Karte ${idx+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`, type:"forgot" });
       }
     }, 300);
   };
 
-  const filled = cards.filter(isNormal).length;
-  const fixed = cards.filter(isFix).length;
-  const forgot = cards.filter(isForget).length;
-  const pct = Math.round(forgetChance * 100);
-  const cols = cards.length <= 6 ? 3 : cards.length <= 8 ? 4 : 3;
+  const filled  = cards.filter(isNormal).length;
+  const fixedC  = cards.filter(isFix).length;
+  const forgotC = cards.filter(isForgot).length;
+  const pct     = Math.round(forgetChance * 100);
+  const cols    = cards.length <= 6 ? 3 : cards.length <= 8 ? 4 : 3;
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0b0b0f", backgroundImage:"radial-gradient(ellipse at 15% 15%, rgba(255,107,53,0.06) 0%, transparent 55%), radial-gradient(ellipse at 85% 85%, rgba(90,10,30,0.1) 0%, transparent 55%)", display:"flex", flexDirection:"column", alignItems:"center", padding:"28px 20px 40px", position:"relative" }}>
+    <div style={{ minHeight:"100vh", background:"#0b0b0f",
+      backgroundImage:"radial-gradient(ellipse at 15% 15%,rgba(255,107,53,0.06) 0%,transparent 55%),radial-gradient(ellipse at 85% 85%,rgba(90,10,30,0.1) 0%,transparent 55%)",
+      display:"flex", flexDirection:"column", alignItems:"center",
+      padding:"28px 20px 48px", position:"relative" }}>
 
       {/* Gear */}
-      <button className="gear-btn" onClick={() => setShowSettings(true)}
-        style={{ position:"absolute", top:20, right:20, background:"transparent", border:"1px solid #2a2a35", borderRadius:8, width:40, height:40, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:20 }}>
-        ⚙️
-      </button>
+      <button className="gear-btn" onClick={() => setShowSettings(true)} style={{
+        position:"absolute", top:20, right:20,
+        background:"transparent", border:"1px solid #2a2a35",
+        borderRadius:8, width:40, height:40,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        cursor:"pointer", fontSize:20
+      }}>⚙️</button>
 
       {/* Header */}
       <div style={{ textAlign:"center", marginBottom:10 }}>
         <div style={{ fontSize:10, letterSpacing:6, color:"#ff6b35", textTransform:"uppercase", marginBottom:4 }}>★ Merk-Helfer ★</div>
         <h1 style={{ fontSize:26, fontWeight:900, color:"#fff", margin:0, letterSpacing:1 }}>ARSCHMALLOWS</h1>
         <div style={{ fontSize:10, color:"#f1c40f", marginTop:3, letterSpacing:2 }}>{MODES[mode].label.toUpperCase()}</div>
-        <div style={{ fontSize:11, color:"#444", marginTop:4, letterSpacing:1 }}>
-          Vergesslichkeit: <span style={{ color: pct===0?"#2ecc71":pct<40?"#f1c40f":"#ff4d6d" }}>{pct}%</span>
+        <div style={{ fontSize:11, color:"#444", marginTop:4 }}>
+          Vergesslichkeit: <span style={{ color:pct===0?"#2ecc71":pct<40?"#f1c40f":"#ff4d6d" }}>{pct}%</span>
         </div>
       </div>
 
@@ -345,49 +418,111 @@ function App() {
       <div style={{ display:"flex", gap:14, marginBottom:20, flexWrap:"wrap", justifyContent:"center", fontSize:11 }}>
         <span style={{color:"#ff6b35"}}>✓ {filled} eingetragen</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#2ecc71"}}>🔒 {fixed} fix</span>
+        <span style={{color:"#2ecc71"}}>🔒 {fixedC} fix</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#ff4d6d"}}>💨 {forgot} vergessen</span>
+        <span style={{color:"#ff4d6d"}}>💨 {forgotC} vergessen</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#444"}}>○ {cards.length-filled-fixed-forgot} leer · {cards.length} gesamt</span>
+        <span style={{color:"#444"}}>○ {cards.length-filled-fixedC-forgotC} leer · {cards.length} gesamt</span>
       </div>
 
       {/* Grid */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:10, width:"100%", maxWidth: cols===4?360:300, marginBottom:20 }}>
-        {cards.map((val, idx) => <Card key={idx} value={val} index={idx} onClick={(i) => setModal(i)} shaking={shakingIdx===idx} />)}
+      <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols},1fr)`, gap:10, width:"100%", maxWidth:cols===4?360:300, marginBottom:20 }}>
+        {cards.map((val,idx) => (
+          <Card key={idx} value={val} index={idx} onClick={setOpenCard} shaking={shakingIdx===idx} />
+        ))}
       </div>
 
-      {/* Hint + add card */}
+      {/* Hint */}
       <div style={{ fontSize:11, color:"#3a3a4a", textAlign:"center", marginBottom:14, lineHeight:1.9 }}>
         Karte antippen zum Eintragen<br/>
         <span style={{color:"#2ecc7166"}}>🔒 FIX = wird nie vergessen</span><br/>
         <span style={{color:"#ff4d6d44"}}>{pct}% Chance, dass dabei was verloren geht</span>
       </div>
 
-      {/* Add card button */}
-      <button onClick={handleAddCard}
-        style={{ background:"#1a1a22", color:"#ff6b35", border:"2px dashed #ff6b35", borderRadius:10, padding:"11px 28px", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:2, marginBottom:10, width:"100%", maxWidth:300 }}>
-        + Karte hinzufügen
-      </button>
+      {/* Add card */}
+      <button onClick={() => setCards(p => [...p, null])} style={{
+        background:"#1a1a22", color:"#ff6b35",
+        border:"2px dashed #ff6b35", borderRadius:10,
+        padding:"11px 28px", fontSize:13,
+        fontFamily:"'Courier New',monospace", fontWeight:900,
+        cursor:"pointer", letterSpacing:2, marginBottom:10,
+        width:"100%", maxWidth:300
+      }}>+ Karte hinzufügen</button>
 
       {/* Reset */}
-      <button onClick={handleReset}
-        style={{ background:"transparent", color:"#444", border:"1px solid #2a2a35", borderRadius:8, padding:"9px 22px", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1 }}>
-        ↺ Neues Spiel
-      </button>
+      <button onClick={askReset} style={{
+        background:"transparent", color:"#444",
+        border:"1px solid #2a2a35", borderRadius:8,
+        padding:"9px 22px", fontSize:12,
+        fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1
+      }}>↺ Neues Spiel</button>
 
-      <div style={{ marginTop:28, fontSize:10, color:"#222", textAlign:"center", lineHeight:1.8 }}>
+      <div style={{ marginTop:28, fontSize:10, color:"#222", textAlign:"center" }}>
         © Arschmallows GmbH · Keine Haftung für Vergesslichkeit
       </div>
 
-      {showSettings && <SettingsPanel forgetChance={forgetChance} onChangeChance={setForgetChance} mode={mode} onChangeMode={handleChangeMode} onClose={() => setShowSettings(false)} />}
-      {modal !== null && <CardModal index={modal} currentValue={cards[modal]} numbers={numbers} onSave={handleSave} onRemove={handleRemoveCard} onClose={() => setModal(null)} />}
-      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+      {/* Overlays */}
+      {showSettings && (
+        <SettingsPanel
+          forgetChance={forgetChance}
+          onChangeChance={setForgetChance}
+          mode={mode}
+          onChangeMode={askMode}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {openCard !== null && (
+        <CardModal
+          index={openCard}
+          currentValue={cards[openCard]}
+          numbers={numbers}
+          onSave={saveCard}
+          onAskRemove={askRemove}
+          onClose={() => setOpenCard(null)}
+        />
+      )}
+
+      {toast && <Toast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
+
+      {dlg && dlg.type === "remove" && (
+        <Dialog
+          icon="🗑"
+          title="Feld entfernen?"
+          message={`Karte #${dlg.data+1} wirklich permanent entfernen?`}
+          confirmLabel="Entfernen"
+          confirmColor="#ff4d6d"
+          onConfirm={confirmDlg}
+          onCancel={() => setDlg(null)}
+        />
+      )}
+      {dlg && dlg.type === "mode" && (
+        <Dialog
+          icon="🔀"
+          title={`Zu ${MODES[dlg.data].label} wechseln?`}
+          message={`Das startet ein neues Spiel mit ${MODES[dlg.data].startCards} Karten.\nAlle aktuellen Karten gehen verloren.`}
+          confirmLabel="Wechseln"
+          confirmColor="#f1c40f"
+          onConfirm={confirmDlg}
+          onCancel={() => setDlg(null)}
+        />
+      )}
+      {dlg && dlg.type === "reset" && (
+        <Dialog
+          icon="↺"
+          title="Neues Spiel?"
+          message="Alle Karten werden gelöscht und das Spiel startet neu."
+          confirmLabel="Neues Spiel"
+          confirmColor="#ff6b35"
+          onConfirm={confirmDlg}
+          onCancel={() => setDlg(null)}
+        />
+      )}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("app")).render(<App />);
 </script>
 </body>
 </html>
