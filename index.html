@@ -387,7 +387,7 @@ function App() {
   const fixedC  = cards.filter(isFix).length;
   const forgotC = cards.filter(isForgot).length;
   const pct     = Math.round(forgetChance * 100);
-  const cols    = cards.length <= 6 ? 3 : cards.length <= 8 ? 4 : 3;
+  const cols    = 3;
 
   return (
     <div style={{ minHeight:"100vh", background:"#0b0b0f",
@@ -426,7 +426,7 @@ function App() {
       </div>
 
       {/* Grid */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols},1fr)`, gap:10, width:"100%", maxWidth:cols===4?360:300, marginBottom:20 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, width:"100%", maxWidth:300, marginBottom:20 }}>
         {cards.map((val,idx) => (
           <Card key={idx} value={val} index={idx} onClick={setOpenCard} shaking={shakingIdx===idx} />
         ))}
