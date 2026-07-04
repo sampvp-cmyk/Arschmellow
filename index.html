@@ -11,7 +11,6 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0b0b0f; color: #fff; font-family: 'Courier New', monospace; -webkit-tap-highlight-color: transparent; }
-
     @keyframes shake {
       0%,100% { transform: translateX(0) rotate(0deg); }
       20% { transform: translateX(-7px) rotate(-2deg); }
@@ -24,98 +23,147 @@
       to   { opacity:1; transform:translateX(-50%) translateY(0); }
     }
     @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-    @keyframes popIn {
-      from { opacity:0; transform:translate(-50%,-50%) scale(0.85); }
-      to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
-    }
-
     .gear-btn { transition: border-color 0.2s; }
     .gear-btn:hover { animation: spin 1.5s linear infinite; }
-
     .forget-slider { -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:3px; outline:none; cursor:pointer; margin-bottom:14px; }
     .forget-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:#ff6b35; border:2px solid #fff; cursor:pointer; box-shadow:0 0 8px rgba(255,107,53,0.5); }
     .forget-slider::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#ff6b35; border:2px solid #fff; cursor:pointer; }
-
     .card-shake { animation: shake 0.4s ease; }
   </style>
 </head>
 <body>
 <div id="app"></div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="text/babel">
 
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect } = React;
 
 const FORGOT = "💨";
 
-const MODES = {
-  normal: {
-    label: "Arschmallows",
-    sub: "6 Karten · -4, -2, 1–10",
-    startCards: 6,
-    numbers: [-4, -2, 1,2,3,4,5,6,7,8,9,10]
+// ── Translations ──────────────────────────────────────────────────────────────
+const T = {
+  de: {
+    tagline: "★ Merk-Helfer ★",
+    forgetLabel: "Vergesslichkeit",
+    forgetNever: "nie vergessen",
+    forgetRarely: "selten vergessen",
+    forgetSometimes: "manchmal vergessen",
+    forgetOften: "oft vergessen",
+    forgetAlways: "immer vergessen",
+    forgetHint: "Chance pro Eintrag, dass eine andere Karte vergessen wird.",
+    gameMode: "Spielmodus",
+    modeSwitchHint: "Modwechsel startet neues Spiel",
+    settings: "Einstellungen",
+    language: "Sprache",
+    statFilled: "eingetragen",
+    statFix: "fix",
+    statForgot: "vergessen",
+    statEmpty: "leer",
+    statTotal: "gesamt",
+    tapHint: "Karte antippen zum Eintragen",
+    fixHint: "🔒 FIX = wird nie vergessen",
+    chanceHint: (p) => `${p}% Chance, dass dabei was verloren geht`,
+    addCard: "+ Karte hinzufügen",
+    newGame: "↺ Neues Spiel",
+    footer: "© Arschmallows Cryonix · Keine Haftung für Vergesslichkeit",
+    cardTitle: (i) => `Karte #${i+1}`,
+    fixOn: "AN",
+    fixOff: "AUS",
+    fixOnDesc: "wird nicht vergessen",
+    fixOffDesc: "kann vergessen werden",
+    clearCard: "✕ Karte leeren",
+    removeField: "🗑 Feld entfernen",
+    cancel: "Abbrechen",
+    confirm: "OK",
+    removeTitle: "Feld entfernen?",
+    removeMsg: (i) => `Karte #${i+1} wirklich permanent entfernen?`,
+    removeConfirm: "Entfernen",
+    switchTitle: (label) => `Zu ${label} wechseln?`,
+    switchMsg: (n) => `Das startet ein neues Spiel mit ${n} Karten. Alle aktuellen Karten gehen verloren.`,
+    switchConfirm: "Wechseln",
+    resetTitle: "Neues Spiel?",
+    resetMsg: "Alle Karten werden gelöscht und das Spiel startet neu.",
+    resetConfirm: "Neues Spiel",
+    toastForgot: (saved, victim) => `Während du Karte ${saved+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`,
+    modeSub: { normal: "6 Karten · -4, -2, 1–10", xxl: "9 Karten · -4, -2, 1–15" },
   },
-  xxl: {
-    label: "Arschmallows XXL",
-    sub: "9 Karten · -4, -2, 1–15",
-    startCards: 9,
-    numbers: [-4, -2, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+  en: {
+    tagline: "★ Memory Helper ★",
+    forgetLabel: "Forgetfulness",
+    forgetNever: "never forget",
+    forgetRarely: "rarely forget",
+    forgetSometimes: "sometimes forget",
+    forgetOften: "often forget",
+    forgetAlways: "always forget",
+    forgetHint: "Chance per entry that another card gets forgotten.",
+    gameMode: "Game Mode",
+    modeSwitchHint: "Switching mode starts a new game",
+    settings: "Settings",
+    language: "Language",
+    statFilled: "entered",
+    statFix: "fixed",
+    statForgot: "forgotten",
+    statEmpty: "empty",
+    statTotal: "total",
+    tapHint: "Tap a card to enter a value",
+    fixHint: "🔒 FIX = will never be forgotten",
+    chanceHint: (p) => `${p}% chance something gets lost`,
+    addCard: "+ Add Card",
+    newGame: "↺ New Game",
+    footer: "© Arschmallows Cryonix · No liability for forgetfulness",
+    cardTitle: (i) => `Card #${i+1}`,
+    fixOn: "ON",
+    fixOff: "OFF",
+    fixOnDesc: "will not be forgotten",
+    fixOffDesc: "can be forgotten",
+    clearCard: "✕ Clear Card",
+    removeField: "🗑 Remove Slot",
+    cancel: "Cancel",
+    confirm: "OK",
+    removeTitle: "Remove slot?",
+    removeMsg: (i) => `Permanently remove card #${i+1}?`,
+    removeConfirm: "Remove",
+    switchTitle: (label) => `Switch to ${label}?`,
+    switchMsg: (n) => `This starts a new game with ${n} cards. All current cards will be lost.`,
+    switchConfirm: "Switch",
+    resetTitle: "New Game?",
+    resetMsg: "All cards will be deleted and the game restarts.",
+    resetConfirm: "New Game",
+    toastForgot: (saved, victim) => `While entering card ${saved+1}… I forgot card ${victim+1}. 🤦`,
+    modeSub: { normal: "6 cards · -4, -2, 1–10", xxl: "9 cards · -4, -2, 1–15" },
   }
 };
 
-const isFix  = v => typeof v === "string" && v.startsWith("FIX:");
-const fixNum = v => v ? v.replace("FIX:", "") : "";
+const MODES = {
+  normal: { label: "Arschmallows",     startCards: 6, numbers: [-4,-2,1,2,3,4,5,6,7,8,9,10] },
+  xxl:    { label: "Arschmallows XXL", startCards: 9, numbers: [-4,-2,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
+};
+
+const isFix    = v => typeof v === "string" && v.startsWith("FIX:");
+const fixNum   = v => v ? v.replace("FIX:", "") : "";
 const isForgot = v => v === FORGOT;
 const isEmpty  = v => v === null;
 const isNormal = v => v !== null && !isForgot(v) && !isFix(v);
 
-// ── Overlay backdrop ──────────────────────────────────────────────────────────
+// ── Backdrop ──────────────────────────────────────────────────────────────────
 function Backdrop({ onClick, zIndex }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", backdropFilter:"blur(5px)", zIndex: zIndex || 50 }}
-    />
-  );
+  return <div onClick={onClick} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", backdropFilter:"blur(5px)", zIndex: zIndex||50 }} />;
 }
 
-// ── Custom Dialog (replaces ALL window.confirm / window.alert) ────────────────
+// ── Dialog ────────────────────────────────────────────────────────────────────
 function Dialog({ icon, title, message, confirmLabel, confirmColor, cancelLabel, onConfirm, onCancel }) {
   const cc = confirmColor || "#ff6b35";
-  const isDark = cc === "#f1c40f";
   return (
-    <div onClick={onCancel} style={{
-      position:"fixed", inset:0,
-      background:"rgba(0,0,0,0.82)", backdropFilter:"blur(5px)",
-      zIndex:300,
-      display:"flex", alignItems:"center", justifyContent:"center",
-      padding:"24px"
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background:"#0f0f13",
-        border:`2px solid ${cc}`,
-        borderRadius:18,
-        padding:"28px 24px 22px",
-        width:"100%",
-        maxWidth:320,
-        boxShadow:`0 0 50px ${cc}44`,
-        textAlign:"center"
-      }}>
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", backdropFilter:"blur(5px)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#0f0f13", border:`2px solid ${cc}`, borderRadius:18, padding:"28px 24px 22px", width:"100%", maxWidth:320, boxShadow:`0 0 50px ${cc}44`, textAlign:"center" }}>
         {icon && <div style={{ fontSize:38, marginBottom:12 }}>{icon}</div>}
         <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:1, marginBottom:10 }}>{title}</div>
         <div style={{ fontSize:12, color:"#666", lineHeight:1.75, marginBottom:24 }}>{message}</div>
         <div style={{ display:"flex", gap:10 }}>
-          <button
-            onClick={onCancel}
-            style={{ flex:1, background:"transparent", color:"#666", border:"1px solid #2a2a35", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}
-          >{cancelLabel || "Abbrechen"}</button>
-          <button
-            onClick={onConfirm}
-            style={{ flex:1, background:cc, color: isDark?"#000":"#fff", border:"none", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", boxShadow:`0 0 16px ${cc}55` }}
-          >{confirmLabel || "OK"}</button>
+          <button onClick={onCancel} style={{ flex:1, background:"transparent", color:"#666", border:"1px solid #2a2a35", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}>{cancelLabel}</button>
+          <button onClick={onConfirm} style={{ flex:1, background:cc, color: cc==="#f1c40f"?"#000":"#fff", border:"none", borderRadius:10, padding:"12px 0", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", boxShadow:`0 0 16px ${cc}55` }}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -125,169 +173,116 @@ function Dialog({ icon, title, message, confirmLabel, confirmColor, cancelLabel,
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ message, type, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, []);
-  const s = type === "forgot"
-    ? { bg:"#590d22", border:"#ff4d6d", color:"#ff4d6d" }
-    : { bg:"#0a2e1a", border:"#2ecc71", color:"#2ecc71" };
+  const s = type==="forgot" ? { bg:"#590d22", border:"#ff4d6d", color:"#ff4d6d" } : { bg:"#0a2e1a", border:"#2ecc71", color:"#2ecc71" };
   return (
-    <div style={{
-      position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)",
-      background:s.bg, border:`2px solid ${s.border}`, borderRadius:12,
-      padding:"13px 22px", color:s.color, fontFamily:"'Courier New',monospace",
-      fontWeight:"bold", fontSize:13, zIndex:400,
-      boxShadow:`0 0 30px ${s.border}44`,
-      animation:"toastIn 0.3s ease",
-      maxWidth:"88vw", textAlign:"center", lineHeight:1.5
-    }}>{message}</div>
+    <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background:s.bg, border:`2px solid ${s.border}`, borderRadius:12, padding:"13px 22px", color:s.color, fontFamily:"'Courier New',monospace", fontWeight:"bold", fontSize:13, zIndex:400, boxShadow:`0 0 30px ${s.border}44`, animation:"toastIn 0.3s ease", maxWidth:"88vw", textAlign:"center", lineHeight:1.5 }}>{message}</div>
   );
 }
 
 // ── Settings Panel ────────────────────────────────────────────────────────────
-function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, onClose }) {
+function SettingsPanel({ forgetChance, onChangeChance, mode, onChangeMode, lang, onChangeLang, onClose, t }) {
   const pct = Math.round(forgetChance * 100);
-  const sc = pct===0 ? "#2ecc71" : pct<30 ? "#f1c40f" : pct<60 ? "#ff6b35" : "#ff4d6d";
-  const lbl = pct===0 ? "nie vergessen" : pct<20 ? "selten vergessen" : pct<50 ? "manchmal vergessen" : pct<80 ? "oft vergessen" : "immer vergessen";
+  const sc = pct===0?"#2ecc71":pct<30?"#f1c40f":pct<60?"#ff6b35":"#ff4d6d";
+  const lbl = pct===0?t.forgetNever:pct<20?t.forgetRarely:pct<50?t.forgetSometimes:pct<80?t.forgetOften:t.forgetAlways;
   return (
     <>
       <Backdrop onClick={onClose} zIndex={100} />
-      <div style={{
-        position:"fixed", top:0, right:0, zIndex:101,
-        background:"#0f0f13", border:"2px solid #ff6b35",
-        borderRadius:"0 0 0 16px", padding:"20px 20px 28px",
-        width:300, maxHeight:"100vh", overflowY:"auto",
-        boxShadow:"-10px 10px 40px rgba(0,0,0,0.7)"
-      }}>
+      <div style={{ position:"fixed", top:0, right:0, zIndex:101, background:"#0f0f13", border:"2px solid #ff6b35", borderRadius:"0 0 0 16px", padding:"20px 20px 28px", width:300, maxHeight:"100vh", overflowY:"auto", boxShadow:"-10px 10px 40px rgba(0,0,0,0.7)" }}>
+
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:18 }}>⚙️</span>
-            <span style={{ color:"#ff6b35", fontSize:12, letterSpacing:3, textTransform:"uppercase" }}>Einstellungen</span>
+            <span style={{ color:"#ff6b35", fontSize:12, letterSpacing:3, textTransform:"uppercase" }}>{t.settings}</span>
           </div>
           <div onClick={onClose} style={{ color:"#555", fontSize:20, cursor:"pointer" }}>✕</div>
         </div>
 
-        {/* Mode */}
+        {/* Language */}
         <div style={{ background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:16, marginBottom:12 }}>
-          <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Spielmodus</div>
+          <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>{t.language}</div>
+          <div style={{ display:"flex", gap:8 }}>
+            {[["de","🇩🇪 Deutsch"],["en","🇬🇧 English"]].map(([key, label]) => {
+              const active = lang === key;
+              return (
+                <div key={key} onClick={() => onChangeLang(key)} style={{ flex:1, background:active?"#1a1000":"#1a1a22", border:`2px solid ${active?"#f1c40f":"#2a2a35"}`, borderRadius:10, padding:"10px 8px", cursor:"pointer", textAlign:"center", boxShadow:active?"0 0 14px rgba(241,196,15,0.2)":"none" }}>
+                  <div style={{ fontSize:12, fontWeight:900, color:active?"#f1c40f":"#ccc" }}>{label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Game Mode */}
+        <div style={{ background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:16, marginBottom:12 }}>
+          <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>{t.gameMode}</div>
           {Object.entries(MODES).map(([key, m]) => {
             const active = mode === key;
             return (
-              <div key={key} onClick={() => onChangeMode(key)}
-                style={{ background: active?"#1a1a00":"#1a1a22", border:`2px solid ${active?"#f1c40f":"#2a2a35"}`, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow: active?"0 0 14px rgba(241,196,15,0.2)":"none" }}>
+              <div key={key} onClick={() => onChangeMode(key)} style={{ background:active?"#1a1a00":"#1a1a22", border:`2px solid ${active?"#f1c40f":"#2a2a35"}`, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow:active?"0 0 14px rgba(241,196,15,0.2)":"none" }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:900, color: active?"#f1c40f":"#ccc", letterSpacing:1 }}>{m.label}</div>
-                    <div style={{ fontSize:10, color:"#555", marginTop:3 }}>{m.sub}</div>
+                    <div style={{ fontSize:13, fontWeight:900, color:active?"#f1c40f":"#ccc", letterSpacing:1 }}>{m.label}</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:3 }}>{t.modeSub[key]}</div>
                   </div>
-                  <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${active?"#f1c40f":"#333"}`, background: active?"#f1c40f":"transparent", flexShrink:0 }} />
+                  <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${active?"#f1c40f":"#333"}`, background:active?"#f1c40f":"transparent", flexShrink:0 }} />
                 </div>
               </div>
             );
           })}
-          <div style={{ fontSize:10, color:"#333", textAlign:"center" }}>Modwechsel startet neues Spiel</div>
+          <div style={{ fontSize:10, color:"#333", textAlign:"center" }}>{t.modeSwitchHint}</div>
         </div>
 
-        {/* Forget chance */}
+        {/* Forgetfulness */}
         <div style={{ background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:16 }}>
-          <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Vergesslichkeit</div>
+          <div style={{ color:"#aaa", fontSize:11, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>{t.forgetLabel}</div>
           <div style={{ fontSize:52, fontWeight:900, color:sc, textAlign:"center", lineHeight:1, marginBottom:4, textShadow:`0 0 20px ${sc}66` }}>{pct}%</div>
           <div style={{ fontSize:10, color:"#555", textAlign:"center", marginBottom:16 }}>{lbl}</div>
-          <input type="range" min={0} max={100} step={1} value={pct}
-            onChange={e => onChangeChance(Number(e.target.value)/100)}
-            className="forget-slider"
-            style={{ background:`linear-gradient(to right,${sc} ${pct}%,#2a2a35 ${pct}%)` }}
-          />
+          <input type="range" min={0} max={100} step={1} value={pct} onChange={e => onChangeChance(Number(e.target.value)/100)} className="forget-slider" style={{ background:`linear-gradient(to right,${sc} ${pct}%,#2a2a35 ${pct}%)` }} />
           <div style={{ display:"flex", gap:6 }}>
             {[0,25,50,75,100].map(p => (
-              <button key={p} onClick={() => onChangeChance(p/100)}
-                style={{ flex:1, background:pct===p?"#ff6b35":"#1a1a22", color:pct===p?"#000":"#555", border:`1px solid ${pct===p?"#ff6b35":"#2a2a35"}`, borderRadius:6, padding:"6px 0", fontSize:10, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}>
-                {p}%
-              </button>
+              <button key={p} onClick={() => onChangeChance(p/100)} style={{ flex:1, background:pct===p?"#ff6b35":"#1a1a22", color:pct===p?"#000":"#555", border:`1px solid ${pct===p?"#ff6b35":"#2a2a35"}`, borderRadius:6, padding:"6px 0", fontSize:10, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer" }}>{p}%</button>
             ))}
           </div>
         </div>
-        <div style={{ marginTop:14, fontSize:10, color:"#333", textAlign:"center", lineHeight:1.7 }}>
-          Chance pro Eintrag, dass eine<br/>andere Karte vergessen wird.
-        </div>
+        <div style={{ marginTop:14, fontSize:10, color:"#333", textAlign:"center", lineHeight:1.7 }}>{t.forgetHint}</div>
       </div>
     </>
   );
 }
 
 // ── Card Modal ────────────────────────────────────────────────────────────────
-function CardModal({ index, currentValue, numbers, onSave, onAskRemove, onClose }) {
+function CardModal({ index, currentValue, numbers, onSave, onAskRemove, onClose, t }) {
   const initNum = (isEmpty(currentValue)||isForgot(currentValue)) ? null : isFix(currentValue) ? fixNum(currentValue) : currentValue;
   const [selNum, setSelNum] = useState(initNum);
   const [fixMode, setFixMode] = useState(isFix(currentValue));
 
-  const pickNum = n => {
-    const s = String(n);
-    setSelNum(s);
-    onSave(fixMode ? "FIX:"+s : s);
-  };
-
-  const toggleFix = () => {
-    const nf = !fixMode;
-    setFixMode(nf);
-    if (selNum !== null) onSave(nf ? "FIX:"+selNum : selNum);
-  };
+  const pickNum = n => { const s=String(n); setSelNum(s); onSave(fixMode?"FIX:"+s:s); };
+  const toggleFix = () => { const nf=!fixMode; setFixMode(nf); if(selNum!==null) onSave(nf?"FIX:"+selNum:selNum); };
 
   return (
     <>
       <Backdrop onClick={onClose} zIndex={100} />
-      <div style={{
-        position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        zIndex:101, background:"#0f0f13",
-        border:"2px solid #ff6b35", borderRadius:"20px 20px 0 0",
-        padding:"20px 16px 40px",
-        width:"100%", maxWidth:440,
-        boxShadow:"0 -20px 60px rgba(255,107,53,0.2)"
-      }}>
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", zIndex:101, background:"#0f0f13", border:"2px solid #ff6b35", borderRadius:"20px 20px 0 0", padding:"20px 16px 40px", width:"100%", maxWidth:440, boxShadow:"0 -20px 60px rgba(255,107,53,0.2)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-          <span style={{ color:"#ff6b35", fontSize:12, letterSpacing:4, textTransform:"uppercase" }}>Karte #{index+1}</span>
+          <span style={{ color:"#ff6b35", fontSize:12, letterSpacing:4, textTransform:"uppercase" }}>{t.cardTitle(index)}</span>
           <span onClick={onClose} style={{ color:"#555", fontSize:20, cursor:"pointer" }}>✕</span>
         </div>
 
-        <button onClick={toggleFix} style={{
-          width:"100%", marginBottom:12,
-          background: fixMode?"#0a2e10":"#1a1a22",
-          color: fixMode?"#2ecc71":"#555",
-          border: fixMode?"2px solid #2ecc71":"2px solid #2a2a35",
-          borderRadius:10, padding:"11px 0",
-          fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:14,
-          cursor:"pointer", letterSpacing:2,
-          boxShadow: fixMode?"0 0 14px rgba(46,204,113,0.3)":"none"
-        }}>
-          🔒 FIX {fixMode?"AN":"AUS"} — {fixMode?"wird nicht vergessen":"kann vergessen werden"}
+        <button onClick={toggleFix} style={{ width:"100%", marginBottom:12, background:fixMode?"#0a2e10":"#1a1a22", color:fixMode?"#2ecc71":"#555", border:fixMode?"2px solid #2ecc71":"2px solid #2a2a35", borderRadius:10, padding:"11px 0", fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:14, cursor:"pointer", letterSpacing:2, boxShadow:fixMode?"0 0 14px rgba(46,204,113,0.3)":"none" }}>
+          🔒 FIX {fixMode?t.fixOn:t.fixOff} — {fixMode?t.fixOnDesc:t.fixOffDesc}
         </button>
 
         <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, marginBottom:12 }}>
           {numbers.map(n => {
-            const s = String(n), sel = s===selNum, neg = n<0;
+            const s=String(n), sel=s===selNum, neg=n<0;
             return (
-              <button key={n} onClick={() => pickNum(n)} style={{
-                background: sel?(fixMode?"#1a4a1a":"#ff6b35"):neg?"#1a0a10":"#1a1a22",
-                color: sel?(fixMode?"#2ecc71":"#000"):neg?"#ff8080":"#ccc",
-                border: sel?`2px solid ${fixMode?"#2ecc71":"#ff6b35"}`:neg?"2px solid #4a1a1a":"2px solid #2a2a35",
-                borderRadius:8, padding:"14px 4px",
-                fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:16, cursor:"pointer",
-                boxShadow: sel?`0 0 12px ${fixMode?"rgba(46,204,113,0.4)":"rgba(255,107,53,0.4)"}`:""
-              }}>{n}</button>
+              <button key={n} onClick={() => pickNum(n)} style={{ background:sel?(fixMode?"#1a4a1a":"#ff6b35"):neg?"#1a0a10":"#1a1a22", color:sel?(fixMode?"#2ecc71":"#000"):neg?"#ff8080":"#ccc", border:sel?`2px solid ${fixMode?"#2ecc71":"#ff6b35"}`:neg?"2px solid #4a1a1a":"2px solid #2a2a35", borderRadius:8, padding:"14px 4px", fontFamily:"'Courier New',monospace", fontWeight:900, fontSize:16, cursor:"pointer", boxShadow:sel?`0 0 12px ${fixMode?"rgba(46,204,113,0.4)":"rgba(255,107,53,0.4)"}`:""}}>{n}</button>
             );
           })}
         </div>
 
-        <button onClick={() => onSave(null)} style={{
-          width:"100%", marginBottom:8,
-          background:"transparent", color:"#555",
-          border:"1px solid #2a2a35", borderRadius:8, padding:"10px 0",
-          fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1
-        }}>✕ Karte leeren</button>
-
-        <button onClick={() => onAskRemove(index)} style={{
-          width:"100%",
-          background:"#1a0505", color:"#ff4d6d",
-          border:"1px solid #4a1010", borderRadius:8, padding:"10px 0",
-          fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1
-        }}>🗑 Feld entfernen</button>
+        <button onClick={() => onSave(null)} style={{ width:"100%", marginBottom:8, background:"transparent", color:"#555", border:"1px solid #2a2a35", borderRadius:8, padding:"10px 0", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1 }}>{t.clearCard}</button>
+        <button onClick={() => onAskRemove(index)} style={{ width:"100%", background:"#1a0505", color:"#ff4d6d", border:"1px solid #4a1010", borderRadius:8, padding:"10px 0", fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:1 }}>{t.removeField}</button>
       </div>
     </>
   );
@@ -297,21 +292,7 @@ function CardModal({ index, currentValue, numbers, onSave, onAskRemove, onClose 
 function Card({ value, index, onClick, shaking }) {
   const empty=isEmpty(value), forgot=isForgot(value), fix=isFix(value), num=fix?fixNum(value):value;
   return (
-    <div onClick={() => onClick(index)} className={shaking?"card-shake":""}
-      style={{
-        background: forgot?"#590d22":fix?"#0a2010":empty?"#16161e":"#1e1e2e",
-        border:`2px solid ${forgot?"#ff4d6d":fix?"#2ecc71":empty?"#2a2a35":"#ff6b35"}`,
-        borderStyle: empty?"dashed":"solid",
-        borderRadius:10, aspectRatio:"2/3",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        flexDirection:"column", gap:2,
-        cursor:"pointer",
-        color: forgot?"#ff4d6d":fix?"#2ecc71":empty?"#333":"#fff",
-        fontFamily:"'Courier New',monospace",
-        transition:"all 0.2s",
-        boxShadow: forgot?"0 0 20px rgba(255,77,109,0.35)":fix?"0 0 14px rgba(46,204,113,0.2)":!empty?"0 0 10px rgba(255,107,53,0.12)":"none",
-        userSelect:"none", padding:4, textAlign:"center", overflow:"hidden"
-      }}>
+    <div onClick={() => onClick(index)} className={shaking?"card-shake":""} style={{ background:forgot?"#590d22":fix?"#0a2010":empty?"#16161e":"#1e1e2e", border:`2px solid ${forgot?"#ff4d6d":fix?"#2ecc71":empty?"#2a2a35":"#ff6b35"}`, borderStyle:empty?"dashed":"solid", borderRadius:10, aspectRatio:"2/3", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:2, cursor:"pointer", color:forgot?"#ff4d6d":fix?"#2ecc71":empty?"#333":"#fff", fontFamily:"'Courier New',monospace", transition:"all 0.2s", boxShadow:forgot?"0 0 20px rgba(255,77,109,0.35)":fix?"0 0 14px rgba(46,204,113,0.2)":!empty?"0 0 10px rgba(255,107,53,0.12)":"none", userSelect:"none", padding:4, textAlign:"center", overflow:"hidden" }}>
       {forgot ? <span style={{fontSize:"1.8em"}}>💨</span>
         : empty ? <span style={{fontSize:"1.2em",color:"#333"}}>·</span>
         : fix   ? <><span style={{fontSize:"0.65em",letterSpacing:2,opacity:0.8}}>🔒FIX</span><span style={{fontSize:"1.4em",fontWeight:900,lineHeight:1}}>{num}</span></>
@@ -322,6 +303,7 @@ function Card({ value, index, onClick, shaking }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
+  const [lang, setLang]               = useState("de");
   const [mode, setMode]               = useState("normal");
   const [cards, setCards]             = useState(() => Array(MODES.normal.startCards).fill(null));
   const [openCard, setOpenCard]       = useState(null);
@@ -331,55 +313,33 @@ function App() {
   const [forgetChance, setForgetChance] = useState(0.25);
   const [dlg, setDlg]                 = useState(null);
 
+  const t = T[lang];
   const numbers = MODES[mode].numbers;
 
-  // ── dialog helpers
-  const askMode   = key  => { if (key === mode) return; setShowSettings(false); setDlg({ type:"mode",   data:key   }); };
-  const askRemove = idx  => { setOpenCard(null); setDlg({ type:"remove", data:idx   }); };
-  const askReset  = ()   => { setDlg({ type:"reset"                        }); };
+  const askMode   = key => { if(key===mode) return; setShowSettings(false); setDlg({type:"mode", data:key}); };
+  const askRemove = idx => { setOpenCard(null); setDlg({type:"remove", data:idx}); };
+  const askReset  = ()  => { setDlg({type:"reset"}); };
 
   const confirmDlg = () => {
-    const d = dlg;
-    setDlg(null);
-    if (d.type === "mode") {
-      setMode(d.data);
-      setCards(Array(MODES[d.data].startCards).fill(null));
-      setOpenCard(null);
-    } else if (d.type === "remove") {
-      setCards(prev => prev.filter((_, i) => i !== d.data));
-    } else if (d.type === "reset") {
-      setCards(Array(MODES[mode].startCards).fill(null));
-    }
+    const d = dlg; setDlg(null);
+    if (d.type==="mode")   { setMode(d.data); setCards(Array(MODES[d.data].startCards).fill(null)); setOpenCard(null); }
+    else if (d.type==="remove") { setCards(prev => prev.filter((_,i) => i!==d.data)); }
+    else if (d.type==="reset")  { setCards(Array(MODES[mode].startCards).fill(null)); }
   };
 
-  // ── save card value
   const saveCard = val => {
-    const idx = openCard;
-    setOpenCard(null);
-
-    if (val === null) {
-      setCards(prev => { const n=[...prev]; n[idx]=null; return n; });
-      return;
-    }
-
-    const next = [...cards];
-    next[idx] = val;
-    setCards(next);
-
+    const idx = openCard; setOpenCard(null);
+    if (val===null) { setCards(prev => { const n=[...prev]; n[idx]=null; return n; }); return; }
+    const next=[...cards]; next[idx]=val; setCards(next);
     if (isFix(val)) return;
-
     setTimeout(() => {
-      const targets = next
-        .map((v,i) => ({v,i}))
-        .filter(({v,i}) => isNormal(v) && i !== idx)
-        .map(({i}) => i);
+      const targets = next.map((v,i)=>({v,i})).filter(({v,i})=>isNormal(v)&&i!==idx).map(({i})=>i);
       if (!targets.length) return;
-      if (Math.random() < forgetChance) {
+      if (Math.random()<forgetChance) {
         const victim = targets[Math.floor(Math.random()*targets.length)];
         setCards(prev => { const n=[...prev]; n[victim]=FORGOT; return n; });
-        setShakingIdx(victim);
-        setTimeout(() => setShakingIdx(null), 500);
-        setToast({ msg:`Während du Karte ${idx+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`, type:"forgot" });
+        setShakingIdx(victim); setTimeout(()=>setShakingIdx(null),500);
+        setToast({ msg: t.toastForgot(idx, victim), type:"forgot" });
       }
     }, 300);
   };
@@ -387,138 +347,63 @@ function App() {
   const filled  = cards.filter(isNormal).length;
   const fixedC  = cards.filter(isFix).length;
   const forgotC = cards.filter(isForgot).length;
-  const pct     = Math.round(forgetChance * 100);
-  const cols    = 3;
+  const pct     = Math.round(forgetChance*100);
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0b0b0f",
-      backgroundImage:"radial-gradient(ellipse at 15% 15%,rgba(255,107,53,0.06) 0%,transparent 55%),radial-gradient(ellipse at 85% 85%,rgba(90,10,30,0.1) 0%,transparent 55%)",
-      display:"flex", flexDirection:"column", alignItems:"center",
-      padding:"28px 20px 48px", position:"relative" }}>
+    <div style={{ minHeight:"100vh", background:"#0b0b0f", backgroundImage:"radial-gradient(ellipse at 15% 15%,rgba(255,107,53,0.06) 0%,transparent 55%),radial-gradient(ellipse at 85% 85%,rgba(90,10,30,0.1) 0%,transparent 55%)", display:"flex", flexDirection:"column", alignItems:"center", padding:"28px 20px 48px", position:"relative" }}>
 
       {/* Gear */}
-      <button className="gear-btn" onClick={() => setShowSettings(true)} style={{
-        position:"absolute", top:20, right:20,
-        background:"transparent", border:"1px solid #2a2a35",
-        borderRadius:8, width:40, height:40,
-        display:"flex", alignItems:"center", justifyContent:"center",
-        cursor:"pointer", fontSize:20
-      }}>⚙️</button>
+      <button className="gear-btn" onClick={()=>setShowSettings(true)} style={{ position:"absolute", top:20, right:20, background:"transparent", border:"1px solid #2a2a35", borderRadius:8, width:40, height:40, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:20 }}>⚙️</button>
 
       {/* Header */}
       <div style={{ textAlign:"center", marginBottom:10 }}>
-        <div style={{ fontSize:10, letterSpacing:6, color:"#ff6b35", textTransform:"uppercase", marginBottom:4 }}>★ Merk-Helfer ★</div>
+        <div style={{ fontSize:10, letterSpacing:6, color:"#ff6b35", textTransform:"uppercase", marginBottom:4 }}>{t.tagline}</div>
         <h1 style={{ fontSize:26, fontWeight:900, color:"#fff", margin:0, letterSpacing:1 }}>ARSCHMALLOWS</h1>
         <div style={{ fontSize:10, color:"#f1c40f", marginTop:3, letterSpacing:2 }}>{MODES[mode].label.toUpperCase()}</div>
         <div style={{ fontSize:11, color:"#444", marginTop:4 }}>
-          Vergesslichkeit: <span style={{ color:pct===0?"#2ecc71":pct<40?"#f1c40f":"#ff4d6d" }}>{pct}%</span>
+          {t.forgetLabel}: <span style={{ color:pct===0?"#2ecc71":pct<40?"#f1c40f":"#ff4d6d" }}>{pct}%</span>
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display:"flex", gap:14, marginBottom:20, flexWrap:"wrap", justifyContent:"center", fontSize:11 }}>
-        <span style={{color:"#ff6b35"}}>✓ {filled} eingetragen</span>
+        <span style={{color:"#ff6b35"}}>✓ {filled} {t.statFilled}</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#2ecc71"}}>🔒 {fixedC} fix</span>
+        <span style={{color:"#2ecc71"}}>🔒 {fixedC} {t.statFix}</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#ff4d6d"}}>💨 {forgotC} vergessen</span>
+        <span style={{color:"#ff4d6d"}}>💨 {forgotC} {t.statForgot}</span>
         <span style={{color:"#333"}}>·</span>
-        <span style={{color:"#444"}}>○ {cards.length-filled-fixedC-forgotC} leer · {cards.length} gesamt</span>
+        <span style={{color:"#444"}}>○ {cards.length-filled-fixedC-forgotC} {t.statEmpty} · {cards.length} {t.statTotal}</span>
       </div>
 
       {/* Grid */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, width:"100%", maxWidth:300, marginBottom:20 }}>
-        {cards.map((val,idx) => (
-          <Card key={idx} value={val} index={idx} onClick={setOpenCard} shaking={shakingIdx===idx} />
-        ))}
+        {cards.map((val,idx) => <Card key={idx} value={val} index={idx} onClick={setOpenCard} shaking={shakingIdx===idx} />)}
       </div>
 
       {/* Hint */}
       <div style={{ fontSize:11, color:"#3a3a4a", textAlign:"center", marginBottom:14, lineHeight:1.9 }}>
-        Karte antippen zum Eintragen<br/>
-        <span style={{color:"#2ecc7166"}}>🔒 FIX = wird nie vergessen</span><br/>
-        <span style={{color:"#ff4d6d44"}}>{pct}% Chance, dass dabei was verloren geht</span>
+        {t.tapHint}<br/>
+        <span style={{color:"#2ecc7166"}}>{t.fixHint}</span><br/>
+        <span style={{color:"#ff4d6d44"}}>{t.chanceHint(pct)}</span>
       </div>
 
       {/* Add card */}
-      <button onClick={() => setCards(p => [...p, null])} style={{
-        background:"#1a1a22", color:"#ff6b35",
-        border:"2px dashed #ff6b35", borderRadius:10,
-        padding:"11px 28px", fontSize:13,
-        fontFamily:"'Courier New',monospace", fontWeight:900,
-        cursor:"pointer", letterSpacing:2, marginBottom:10,
-        width:"100%", maxWidth:300
-      }}>+ Karte hinzufügen</button>
+      <button onClick={()=>setCards(p=>[...p,null])} style={{ background:"#1a1a22", color:"#ff6b35", border:"2px dashed #ff6b35", borderRadius:10, padding:"11px 28px", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:2, marginBottom:10, width:"100%", maxWidth:300 }}>{t.addCard}</button>
 
       {/* Reset */}
-      <button onClick={askReset} style={{
-        background:"transparent", color:"#444",
-        border:"1px solid #2a2a35", borderRadius:8,
-        padding:"9px 22px", fontSize:12,
-        fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1
-      }}>↺ Neues Spiel</button>
+      <button onClick={askReset} style={{ background:"transparent", color:"#444", border:"1px solid #2a2a35", borderRadius:8, padding:"9px 22px", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1 }}>{t.newGame}</button>
 
-      <div style={{ marginTop:28, fontSize:10, color:"#222", textAlign:"center" }}>
-        © Arschmallows GmbH · Keine Haftung für Vergesslichkeit
-      </div>
+      <div style={{ marginTop:28, fontSize:10, color:"#222", textAlign:"center" }}>{t.footer}</div>
 
       {/* Overlays */}
-      {showSettings && (
-        <SettingsPanel
-          forgetChance={forgetChance}
-          onChangeChance={setForgetChance}
-          mode={mode}
-          onChangeMode={askMode}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      {showSettings && <SettingsPanel forgetChance={forgetChance} onChangeChance={setForgetChance} mode={mode} onChangeMode={askMode} lang={lang} onChangeLang={setLang} onClose={()=>setShowSettings(false)} t={t} />}
+      {openCard!==null && <CardModal index={openCard} currentValue={cards[openCard]} numbers={numbers} onSave={saveCard} onAskRemove={askRemove} onClose={()=>setOpenCard(null)} t={t} />}
+      {toast && <Toast message={toast.msg} type={toast.type} onDone={()=>setToast(null)} />}
 
-      {openCard !== null && (
-        <CardModal
-          index={openCard}
-          currentValue={cards[openCard]}
-          numbers={numbers}
-          onSave={saveCard}
-          onAskRemove={askRemove}
-          onClose={() => setOpenCard(null)}
-        />
-      )}
-
-      {toast && <Toast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
-
-      {dlg && dlg.type === "remove" && (
-        <Dialog
-          icon="🗑"
-          title="Feld entfernen?"
-          message={`Karte #${dlg.data+1} wirklich permanent entfernen?`}
-          confirmLabel="Entfernen"
-          confirmColor="#ff4d6d"
-          onConfirm={confirmDlg}
-          onCancel={() => setDlg(null)}
-        />
-      )}
-      {dlg && dlg.type === "mode" && (
-        <Dialog
-          icon="🔀"
-          title={`Zu ${MODES[dlg.data].label} wechseln?`}
-          message={`Das startet ein neues Spiel mit ${MODES[dlg.data].startCards} Karten.\nAlle aktuellen Karten gehen verloren.`}
-          confirmLabel="Wechseln"
-          confirmColor="#f1c40f"
-          onConfirm={confirmDlg}
-          onCancel={() => setDlg(null)}
-        />
-      )}
-      {dlg && dlg.type === "reset" && (
-        <Dialog
-          icon="↺"
-          title="Neues Spiel?"
-          message="Alle Karten werden gelöscht und das Spiel startet neu."
-          confirmLabel="Neues Spiel"
-          confirmColor="#ff6b35"
-          onConfirm={confirmDlg}
-          onCancel={() => setDlg(null)}
-        />
-      )}
+      {dlg&&dlg.type==="remove" && <Dialog icon="🗑" title={t.removeTitle} message={t.removeMsg(dlg.data)} confirmLabel={t.removeConfirm} confirmColor="#ff4d6d" cancelLabel={t.cancel} onConfirm={confirmDlg} onCancel={()=>setDlg(null)} />}
+      {dlg&&dlg.type==="mode"   && <Dialog icon="🔀" title={t.switchTitle(MODES[dlg.data].label)} message={t.switchMsg(MODES[dlg.data].startCards)} confirmLabel={t.switchConfirm} confirmColor="#f1c40f" cancelLabel={t.cancel} onConfirm={confirmDlg} onCancel={()=>setDlg(null)} />}
+      {dlg&&dlg.type==="reset"  && <Dialog icon="↺" title={t.resetTitle} message={t.resetMsg} confirmLabel={t.resetConfirm} confirmColor="#ff6b35" cancelLabel={t.cancel} onConfirm={confirmDlg} onCancel={()=>setDlg(null)} />}
     </div>
   );
 }
