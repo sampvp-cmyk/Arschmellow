@@ -349,6 +349,12 @@ function App() {
   const forgotC = cards.filter(isForgot).length;
   const pct     = Math.round(forgetChance*100);
 
+  const sum = cards.reduce((acc, v) => {
+    if (isNormal(v)) return acc + parseInt(v, 10);
+    if (isFix(v))    return acc + parseInt(fixNum(v), 10);
+    return acc;
+  }, 0);
+
   return (
     <div style={{ minHeight:"100vh", background:"#0b0b0f", backgroundImage:"radial-gradient(ellipse at 15% 15%,rgba(255,107,53,0.06) 0%,transparent 55%),radial-gradient(ellipse at 85% 85%,rgba(90,10,30,0.1) 0%,transparent 55%)", display:"flex", flexDirection:"column", alignItems:"center", padding:"28px 20px 48px", position:"relative" }}>
 
@@ -360,7 +366,8 @@ function App() {
         <div style={{ fontSize:10, letterSpacing:6, color:"#ff6b35", textTransform:"uppercase", marginBottom:4 }}>{t.tagline}</div>
         <h1 style={{ fontSize:26, fontWeight:900, color:"#fff", margin:0, letterSpacing:1 }}>ARSCHMALLOWS</h1>
         <div style={{ fontSize:10, color:"#f1c40f", marginTop:3, letterSpacing:2 }}>{MODES[mode].label.toUpperCase()}</div>
-        <div style={{ fontSize:11, color:"#444", marginTop:4 }}>
+        <div style={{ fontSize:11, color:"#555", marginTop:2, letterSpacing:1 }}>{cards.length} {t.statTotal}</div>
+        <div style={{ fontSize:11, color:"#444", marginTop:2 }}>
           {t.forgetLabel}: <span style={{ color:pct===0?"#2ecc71":pct<40?"#f1c40f":"#ff4d6d" }}>{pct}%</span>
         </div>
       </div>
@@ -390,6 +397,14 @@ function App() {
 
       {/* Add card */}
       <button onClick={()=>setCards(p=>[...p,null])} style={{ background:"#1a1a22", color:"#ff6b35", border:"2px dashed #ff6b35", borderRadius:10, padding:"11px 28px", fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:900, cursor:"pointer", letterSpacing:2, marginBottom:10, width:"100%", maxWidth:300 }}>{t.addCard}</button>
+
+      {/* Sum */}
+      <div style={{ width:"100%", maxWidth:300, marginBottom:14, background:"#16161e", border:"1px solid #2a2a35", borderRadius:12, padding:"14px 0", textAlign:"center" }}>
+        <div style={{ fontSize:11, color:"#555", letterSpacing:2, textTransform:"uppercase", marginBottom:4 }}>∑ Summe</div>
+        <div style={{ fontSize:36, fontWeight:900, fontFamily:"'Courier New',monospace", color: sum>0?"#ff6b35":sum<0?"#ff4d6d":"#666", textShadow: sum!==0?`0 0 20px ${sum>0?"rgba(255,107,53,0.4)":"rgba(255,77,109,0.4)"}`:""  }}>
+          {sum>0?"+":""}{sum}
+        </div>
+      </div>
 
       {/* Reset */}
       <button onClick={askReset} style={{ background:"transparent", color:"#444", border:"1px solid #2a2a35", borderRadius:8, padding:"9px 22px", fontSize:12, fontFamily:"'Courier New',monospace", cursor:"pointer", letterSpacing:1 }}>{t.newGame}</button>
