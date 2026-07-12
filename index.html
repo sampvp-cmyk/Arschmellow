@@ -87,7 +87,7 @@ const T = {
     resetMsg: "Alle Karten werden gelöscht und das Spiel startet neu.",
     resetConfirm: "Neues Spiel",
     toastForgot: (saved, victim) => `Während du Karte ${saved+1} eingetragen hast… vergaß ich Karte ${victim+1}. 🤦`,
-    modeSub: { normal: "6 Karten · -4, -2, 1–10", xxl: "9 Karten · -4, -2, 1–15" },
+    modeSub: { normal: "6 Karten · -4, -2, 0–10", xxl: "9 Karten · -4, -2, 0–15" },
   },
   en: {
     tagline: "★ Memory Helper ★",
@@ -132,13 +132,13 @@ const T = {
     resetMsg: "All cards will be deleted and the game restarts.",
     resetConfirm: "New Game",
     toastForgot: (saved, victim) => `While entering card ${saved+1}… I forgot card ${victim+1}. 🤦`,
-    modeSub: { normal: "6 cards · -4, -2, 1–10", xxl: "9 cards · -4, -2, 1–15" },
+    modeSub: { normal: "6 cards · -4, -2, 0–10", xxl: "9 cards · -4, -2, 0–15" },
   }
 };
 
 const MODES = {
-  normal: { label: "Arschmallows",     startCards: 6, numbers: [-4,-2,1,2,3,4,5,6,7,8,9,10] },
-  xxl:    { label: "Arschmallows XXL", startCards: 9, numbers: [-4,-2,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
+  normal: { label: "Arschmallows",     startCards: 6, numbers: [-4,-2,0,1,2,3,4,5,6,7,8,9,10] },
+  xxl:    { label: "Arschmallows XXL", startCards: 9, numbers: [-4,-2,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
 };
 
 const isFix    = v => typeof v === "string" && v.startsWith("FIX:");
